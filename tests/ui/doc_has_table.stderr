@@ -1,0 +1,14 @@
+error: has table
+  --> tests/ui/doc_has_table.rs:6:5
+   |
+LL |   /// | Is | Table |
+   |  _____^
+LL | | /// |----|-------|
+LL | | /// | in | here  |
+   | |__________________^
+   |
+   = note: `-D clippy::doc-has-table` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::doc_has_table)]`
+
+error: aborting due to 1 previous error
+

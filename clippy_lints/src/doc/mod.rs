@@ -13,7 +13,7 @@ use rustc_resolve::rustdoc::pulldown_cmark::Event::{
     TaskListMarker, Text,
 };
 use rustc_resolve::rustdoc::pulldown_cmark::Tag::{
-    BlockQuote, CodeBlock, FootnoteDefinition, Heading, Item, Link, Paragraph,
+    BlockQuote, CodeBlock, FootnoteDefinition, Heading, Item, Link, Paragraph, Table,
 };
 use rustc_resolve::rustdoc::pulldown_cmark::{BrokenLink, CodeBlockKind, CowStr, Options, TagEnd};
 use rustc_resolve::rustdoc::{
@@ -23,6 +23,7 @@ use rustc_resolve::rustdoc::{
 use rustc_session::impl_lint_pass;
 use rustc_span::Span;
 use std::ops::Range;
+use std::sync::Mutex;
 use url::Url;
 
 mod broken_link;
@@ -38,6 +39,28 @@ mod needless_doctest_main;
 mod suspicious_doc_comments;
 mod test_attr_in_doctest;
 mod too_long_first_doc_paragraph;
+
+declare_clippy_lint! {
+    /// ### What it does
+    /// Checks for links with code directly adjacent to code text:
+    /// `` [`MyItem`]`<`[`u32`]`>` ``.
+    ///
+    /// ### Why is this bad?
+    /// It can be written more simply using HTML-style `<code>` tags.
+    ///
+    /// ### Example
+    /// ```no_run
+    /// //! [`first`](x)`second`
+    /// ```
+    /// Use instead:
+    /// ```no_run
+    /// //! <code>[first](x)second</code>
+    /// ```
+    #[clippy::version = "1.87.0"]
+    pub DOC_HAS_TABLE,
+    nursery,
+    "link with code back-to-back with other code"
+}
 
 declare_clippy_lint! {
     /// ### What it does
@@ -705,6 +728,7 @@ declare_clippy_lint! {
 }
 
 impl_lint_pass!(Documentation => [
+    DOC_HAS_TABLE,
     DOC_BROKEN_LINK,
     DOC_COMMENT_DOUBLE_SPACE_LINEBREAKS,
     DOC_INCLUDE_WITHOUT_CFG,
@@ -1114,6 +1138,19 @@ fn check_doc<'a, Events: Iterator<Item = (pulldown_cmark::Event<'a>, Range<usize
                     blockquote_level += 1;
                 } else if tag.starts_with("</blockquote") || tag.starts_with("</q") {
                     blockquote_level -= 1;
+                }
+            },
+            Start(Table(..)) => {
+                static HIT: Mutex<bool> = Mutex::new(false);
+                let mut hit = HIT.lock().unwrap();
+                if !*hit {
+                    *hit = true;
+                    span_lint(
+                        cx,
+                        DOC_HAS_TABLE,
+                        fragments.span(cx, range).unwrap_or(attrs[0].span()),
+                        "has table",
+                    );
                 }
             },
             Start(BlockQuote(_)) => {
